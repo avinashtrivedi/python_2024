@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Disasters</title>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+
+<body>
+
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="container">
+        <div class="navbar-header">
+            <a class="navbar-brand" href="/">Disaster Response</a>
+        </div>        
+    </div>
+</nav>
+
+
+<div class="row container-fluid m-0 p-0">
+    <div class="col-12">
+        <div class="jumbotron">
+            <div class="container">
+                <h1 class="text-center">Disaster Response</h1>
+                <p class="text-center">Analyze message data</p>
+                <hr />
+              
+                <div class="row">
+                    <div class="col-lg-12 form-group-lg">
+                        <form action="/multi" method="get">
+                            <input type="text" class="form-control form-control-lg" name="query" placeholder="Enter a message to classify into multiple categories from the MDRM dataset">
+                            <div class="col-lg-offset-5">
+                                <button type="submit" class="btn btn-lg btn-success">Multi-classifier</button>
+                            </div>                            
+                        </form>
+                        <br>
+                        <form action="/deep" method="get">
+                            <input type="text" class="form-control form-control-lg" name="query" placeholder="Enter a message to classify into the four main disaster categories">
+                            <div class="col-lg-offset-5">
+                                <button type="submit" class="btn btn-lg btn-success">Deep Classifiers</button>
+                            </div>                            
+                         </form>
+                    </div>
+                </div>
+
+                {% block message %}
+                {% endblock %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class=" container mt-3 text-center">    
+    <div class="container">
+        {% block content %}
+            <div class="page-header">
+                <br><br><br><br><br><br><br><br><br><br><br><br>
+                <h1 class="text-center">Overview of all categories from 'Multilingual Disaster Response Message (MDRM)' dataset and 'Unified records of extreme flooding events'</h1>
+            </div>
+        {% endblock %}
+        
+
+        {% for id in ids %}
+            <div id="{{id}}"></div>
+        {% endfor %}        
+    </div>
+</div>
+
+<script type="text/javascript">
+    const graphs = {{graphJSON | safe}};
+    const ids = {{ids | safe}};
+    for(let i in graphs) {
+        Plotly.plot(ids[i], graphs[i].data, graphs[i].layout);
+    }
+</script>
+
+</body>
+</html>
