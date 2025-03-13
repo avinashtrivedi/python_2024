@@ -1,0 +1,16 @@
+I have two NC files, the first one is historical land cover change from 1850 to 2014. I need only the last time step of this file to use as my current land cover (2014).
+Another file is a map of sustainable forest cover that we want toreach after 55 years (2069).
+The changes should be applied on 2014 map gradually to reach the second map, but the changes should be proportional to the current land cover types.
+- in the historical file we have 9 types(lev) of land cover. Here are the categouries for each:
+Forest area: levels 1-5
+crop area: levels 6-7
+grass area: levels 8-9
+
+So, the idea is that increase forest area in the current map gradullay to reach the second forest area map by 55 years,
+this increase have to proportional to each type of land cover. Forexample if we have 10 perecnt of type1 and 20 percent of type2, t
+the increase should be 10% increase for the first type and 20% for the second type. 
+In addition, I want to decrease the crop area when increasing forest areas. so the cell area remaine same.
+If increasing forest area exceed the cell size, then I'm going to reduce grass area to balance all.
+
+And finally, I want to keep the last state land cover(2069) by 2200 and then save it into a NC file.
+Also, keep all attributes the same as historical file.

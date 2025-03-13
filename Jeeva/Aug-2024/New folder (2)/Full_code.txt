@@ -1,0 +1,374 @@
+############ Finetuning and pushing to huggingface account ############
+############### For BERT and RoBERTa################################
+
+import numpy as np
+import pandas as pd
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
+import torch # Importing PyTorch for building neural network models
+from transformers import AutoTokenizer,AutoModelForSequenceClassification, Trainer, TrainingArguments
+from sklearn.model_selection import train_test_split
+
+from torch.utils.data import Dataset, DataLoader
+from sklearn.metrics import accuracy_score, classification_report
+from torch import nn, optim
+from sklearn.metrics import precision_recall_fscore_support
+
+get_ipython().system('huggingface-cli login --token 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')
+
+data = pd.read_csv('all-data.csv',
+                   encoding='unicode_escape',
+                   names=['Sentiment', 'Text'])
+data.head()
+
+
+data['Sentiment'].value_counts()
+
+data.shape
+
+
+Bert_checkpoint = "bert-base-uncased"
+Roberta_checkpoint = "soleimanian/financial-roberta-large-sentiment"
+
+
+# # Run the below code twice
+# - First for Bert_checkpoint
+# - next time for Roberta_checkpoint
+
+# In[ ]:
+
+
+# Convert sentiment labels from textual to numerical format for easier processing
+label_dict = {'negative': 0, 'neutral': 1, 'positive': 2}  # Mapping labels to numerical values
+data['Sentiment'] = data['Sentiment'].replace(label_dict)  # Replacing text labels with corresponding numerical values
+
+train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)  # 80% for training, 20% for testing
+train_data, val_data = train_test_split(train_data, test_size=0.1, random_state=42)
+test_data.to_csv('test.csv',index=False)
+tokenizer = AutoTokenizer.from_pretrained(Roberta_checkpoint)
+# Using the 'bert-base-uncased' pre-trained tokenizer
+
+# Defining a preprocessing function for tokenizing and encoding sequences
+def preprocess_for_bert(data):
+    # Tokenizing and encoding the text data with padding and truncation to handle variable lengths
+    # 'max_length=512' sets the maximum length of the sequences
+    # 'return_tensors="pt"' returns PyTorch tensors
+    return tokenizer(data['Text'].tolist(), padding=True, truncation=True, max_length=512, return_tensors="pt")
+
+# Applying the preprocessing function to the training and validation data
+train_encoded = preprocess_for_bert(train_data)
+test_encoded = preprocess_for_bert(test_data)
+val_encoded = preprocess_for_bert(val_data)
+
+# Function to compute metrics for evaluation
+def compute_metrics(pred):
+    from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+    labels = pred.label_ids  # Actual labels
+    preds = pred.predictions.argmax(-1)  # Predictions from the model
+    # Calculating precision, recall, F1-score, and accuracy
+    precision, recall, f1, _ = precision_recall_fscore_support(labels, preds, average='weighted')
+    acc = accuracy_score(labels, preds)
+    return {
+        'accuracy': acc,
+        'f1': f1,
+        'precision': precision,
+        'recall': recall
+    }
+
+# Defining a custom dataset class for handling the BERT-processed data
+class SentimentDataset(torch.utils.data.Dataset):
+    # Initialization with encodings and labels
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    # Method to get an item by index
+    def __getitem__(self, idx):
+        # Preparing each item by retrieving encoded data and corresponding label
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        item['labels'] = torch.tensor(self.labels[idx])
+        return item
+
+    # Method to get the total number of items in the dataset
+    def __len__(self):
+        return len(self.labels)
+
+
+# In[ ]:
+
+
+# Creating dataset objects for the training and validation datasets
+train_dataset = SentimentDataset(train_encoded, train_data['Sentiment'].values)
+val_dataset = SentimentDataset(val_encoded, val_data['Sentiment'].values)
+test_dataset = SentimentDataset(test_encoded, test_data['Sentiment'].values)
+
+# Loading a pre-trained BERT model specifically for sequence classification
+# 'bert-base-uncased' is the model type, and 'num_labels=3' indicates three output labels (negative, neutral, positive)
+model = AutoModelForSequenceClassification.from_pretrained(Roberta_checkpoint, num_labels=3)
+
+
+
+# Defining various training parameters
+training_args = TrainingArguments(
+    output_dir='RoBERTa_FPB_finetuned_v2',               # Directory where the model predictions and checkpoints will be written
+    num_train_epochs=4,                   # Total number of training epochs
+    per_device_train_batch_size=16,       # Batch size per device during training
+    per_device_eval_batch_size=64,        # Batch size for evaluation
+    warmup_steps=500,                     # Number of warmup steps for learning rate scheduler
+    weight_decay=0.01,                    # Weight decay if we apply some form of weight regularization
+    logging_dir='./logs',                 # Directory for storing logs
+    logging_steps=10,                     # How often to print logs
+    evaluation_strategy="epoch",          # Evaluation is done at the end of each epoch
+    report_to="none"                      # Disables the integration with any external reporting system
+)
+
+
+# Initializing the Trainer with the model, training arguments, and datasets
+trainer = Trainer(
+    model=model,                          # The pre-trained BERT model
+    args=training_args,                   # Training arguments defined above
+    train_dataset=train_dataset,          # Training dataset
+    eval_dataset=val_dataset,             # Validation dataset
+    compute_metrics=compute_metrics       # Function for computing evaluation metrics
+)
+
+# Starting the training process
+trainer.train()
+
+# Evaluating the trained model on the validation dataset
+evaluation_results = trainer.evaluate()
+
+
+# In[ ]:
+
+
+trainer.push_to_hub()
+
+############ Prediction on finetuned Model ##############
+
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+import torch
+import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+from scipy.special import softmax
+from sklearn.metrics import confusion_matrix,classification_report,f1_score,accuracy_score,ConfusionMatrixDisplay
+from transformers import AutoTokenizer,AutoModelForSequenceClassification, Trainer, TrainingArguments
+
+
+# In[3]:
+
+
+test_data = pd.read_csv('test.csv')
+test_data.head()
+
+
+# In[4]:
+
+
+test_data.shape
+
+
+# In[5]:
+
+
+Bert_finetuned_checkpoint = "Elanthamiljeeva/BERT_FPB_finetuned_v2"
+Roberta_finetuned_checkpoint = "Elanthamiljeeva/RoBERTa_FPB_finetuned_v2"
+
+
+# In[6]:
+
+
+# Convert sentiment labels from textual to numerical format for easier processing
+label_dict = {'negative': 0, 'neutral': 1, 'positive': 2}  # Mapping labels to numerical values
+test_data['Sentiment'] = test_data['Sentiment'].replace(label_dict)  # Replacing text labels with corresponding numerical values
+
+tokenizer_bert = AutoTokenizer.from_pretrained('bert-base-uncased')
+tokenizer_Roberta = AutoTokenizer.from_pretrained('FacebookAI/roberta-base')
+
+
+# In[7]:
+
+
+# Loading a fine-tuned BERT model specifically for sequence classification
+model_bert = AutoModelForSequenceClassification.from_pretrained(Bert_finetuned_checkpoint, num_labels=3)
+model_Roberta = AutoModelForSequenceClassification.from_pretrained(Roberta_finetuned_checkpoint, num_labels=3)
+
+
+# In[8]:
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def get_prediction(model, tokenizer, text):
+    model.to(device)
+    encoded_input = tokenizer([text], padding=True, truncation=True,
+                              max_length=512, return_tensors="pt").to(device)
+    output = model(**encoded_input)
+
+    # Move the output to CPU and convert to numpy array
+    scores = output[0][0].detach().cpu().numpy()
+    scores = softmax(scores)
+    # Get ranking
+    ranking = np.argsort(scores)[::-1]
+    return ranking[0]
+
+
+# # Prediction on finetuned BERT
+
+# In[9]:
+
+
+pred_bert = []
+for text in tqdm(test_data['Text']):
+    pred_bert.append(get_prediction(model_bert,tokenizer_bert,text))
+
+
+# In[10]:
+
+
+print(classification_report(test_data['Sentiment'],pred_bert))
+
+
+# In[11]:
+
+
+acc = accuracy_score(test_data['Sentiment'],pred_bert)
+f1 = f1_score(test_data['Sentiment'],pred_bert,average='weighted')
+
+acc,f1
+
+
+# In[14]:
+
+
+cm = confusion_matrix(test_data['Sentiment'],pred_bert)
+labels = ["negative","neutral", "positive"]
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+
+# Plot the confusion matrix
+disp.plot(cmap=plt.cm.Blues)
+plt.show()
+
+
+# # Prediction on finetuned RoBERTa
+
+# In[15]:
+
+
+pred_Roberta = []
+for text in tqdm(test_data['Text']):
+    pred_Roberta.append(get_prediction(model_Roberta,tokenizer_Roberta,text))
+
+
+# In[16]:
+
+
+print(classification_report(test_data['Sentiment'],pred_Roberta))
+acc = accuracy_score(test_data['Sentiment'],pred_Roberta)
+f1 = f1_score(test_data['Sentiment'],pred_Roberta,average='weighted')
+
+acc,f1
+
+
+# In[17]:
+
+
+cm = confusion_matrix(test_data['Sentiment'],pred_Roberta)
+labels = ["negative","neutral", "positive"]
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+
+# Plot the confusion matrix
+disp.plot(cmap=plt.cm.Blues)
+plt.show()
+
+
+####### Training and prediction on SVM ###############
+
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer,CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, confusion_matrix,accuracy_score,f1_score,ConfusionMatrixDisplay
+
+data = pd.read_csv('all-data.csv',
+                   encoding='unicode_escape',
+                   names=['Sentiment', 'Text'])
+
+X = data['Text']
+y = data['Sentiment']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+
+# # TfidfVectorizer
+
+# In[2]:
+
+
+vectorizer = TfidfVectorizer()
+X_train_tfidf = vectorizer.fit_transform(X_train)
+X_test_tfidf = vectorizer.transform(X_test)
+
+model = SVC(kernel='linear')
+model.fit(X_train_tfidf, y_train)
+
+y_pred = model.predict(X_test_tfidf)
+
+print("Classification Report:")
+print(classification_report(y_test, y_pred))
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print('f1_score',f1_score(y_test, y_pred,average='weighted'))
+
+
+# In[3]:
+
+
+cm = confusion_matrix(y_test,y_pred)
+labels = ["negative","neutral", "positive"]
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+
+# Plot the confusion matrix
+disp.plot(cmap=plt.cm.Blues)
+plt.show()
+
+
+# # Using CountVectorizer
+
+# In[4]:
+
+
+vectorizer = CountVectorizer()
+X_train_countvector = vectorizer.fit_transform(X_train)
+X_test_countvector = vectorizer.transform(X_test)
+
+model = SVC(kernel='linear')
+model.fit(X_train_countvector, y_train)
+
+y_pred = model.predict(X_test_countvector)
+
+print("Classification Report:")
+print(classification_report(y_test, y_pred))
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print('f1_score',f1_score(y_test, y_pred,average='weighted'))
+
+
+# In[5]:
+
+
+cm = confusion_matrix(y_test,y_pred)
+labels = ["negative","neutral", "positive"]
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+
+# Plot the confusion matrix
+disp.plot(cmap=plt.cm.Blues)
+plt.show()
+
+
+
+
+

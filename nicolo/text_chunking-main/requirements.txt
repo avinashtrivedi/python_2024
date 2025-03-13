@@ -1,0 +1,11 @@
+langchain
+langchain-openai
+langchain-community
+langchain-text-splitters
+llama-index
+umap-learn
+hdbscan
+python-dotenv
+seaborn
+datamapplot
+black

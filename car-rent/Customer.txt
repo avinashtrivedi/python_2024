@@ -1,0 +1,5 @@
+12,Cosmo,Kramer,212-347-5678,assman@nbc.com
+45,Norm,Newman,345-546-0987,newman@nbc.com
+1,Hallie,Berry,345-987-0987,hallie@holler.com
+2,Elaine,Benis,567-909-2345,lainey@pendant.com
+3,Jerry,Seinfeld,212-567-3487,seinfeld@nbc.com

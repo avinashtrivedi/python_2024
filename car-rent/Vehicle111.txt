@@ -1,0 +1,3 @@
+HYU-238,Ford iV,5,50.0,100.0,R
+ABC-123,Lincoln Towncar,3.0,189.99,45.45,A
+NBC-111,Tesla,4.0,200.0,67.0,A
