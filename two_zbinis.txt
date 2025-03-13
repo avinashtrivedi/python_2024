@@ -1,0 +1,2 @@
+wav,red,tik
+cur,gre,tik
